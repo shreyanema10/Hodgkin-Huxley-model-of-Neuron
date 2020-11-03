@@ -1,0 +1,101 @@
+% create list of all input current values starting from 0.01 with a jump of
+% 0.006 micro ampere
+Iext= linspace(0.01,0.6,100);
+peak_num=[]; % initializing list to store number of spikes at all input current values
+curr_th = [];
+delta = 10; % minimum peak height = 10 mV
+% run HH Model for all values of current
+for j = 1:100
+    ImpCur= Iext(j);
+    % define all parameters
+    gkmax=.36;
+    vk=-77; 
+    gnamax=1.20;
+    vna=50; 
+    gl=0.003;
+    vl=-54.387; 
+    cm=.01; 
+
+    dt=0.01;
+    niter=100000;
+    t=(1:niter)*dt;
+    iapp=ImpCur*ones(1,niter);
+    %for i=1:100
+     %   iapp(1,i)=ImpCur;
+     %end;
+    v=-64.9964;
+    m=0.0530;
+    h=0.5960;
+    n=0.3177;
+    % initialize arrays
+    gnahist=zeros(1,niter);
+    gkhist=zeros(1,niter);
+    vhist=zeros(1,niter);
+    mhist=zeros(1,niter);
+    hhist=zeros(1,niter);
+    nhist=zeros(1,niter);
+
+
+    for iter=1:niter
+      % modelling neuron behaviour by defining all mathematical/differential equations 
+      gna=gnamax*m^3*h; 
+      gk=gkmax*n^4; 
+      gtot=gna+gk+gl;
+      vinf = ((gna*vna+gk*vk+gl*vl)+ iapp(iter))/gtot;
+      tauv = cm/gtot;
+      v=vinf+(v-vinf)*exp(-dt/tauv);
+      alpham = 0.1*(v+40)/(1-exp(-(v+40)/10));
+      betam = 4*exp(-0.0556*(v+65));
+      alphan = 0.01*(v+55)/(1-exp(-(v+55)/10));
+      betan = 0.125*exp(-(v+65)/80);
+      alphah = 0.07*exp(-0.05*(v+65));
+      betah = 1/(1+exp(-0.1*(v+35)));
+      taum = 1/(alpham+betam);
+      tauh = 1/(alphah+betah);
+      taun = 1/(alphan+betan);
+      minf = alpham*taum;
+      hinf = alphah*tauh;
+      ninf = alphan*taun;
+      m=minf+(m-minf)*exp(-dt/taum);
+      h=hinf+(h-hinf)*exp(-dt/tauh);
+      n=ninf+(n-ninf)*exp(-dt/taun);
+      vhist(iter)=v; mhist(iter)=m; hhist(iter)=h; nhist(iter)=n;
+    end
+    % to find number of spikes find all peakes with peak height > 10mV in
+    % voltage vs time graph in time interval of 1 sec
+    [pks, locs] = findpeaks(vhist, t);
+    pks = pks(pks>10);
+    [row,col] = size(pks);
+    % code to pick threshold current
+    if j>1 && peak_num(j-1)==0 && col ==1
+        curr_th = [curr_th, Iext(j-1)];
+    end
+    if j>1 && abs(col-peak_num(j-1)) > 30
+        curr_th = [curr_th, Iext(j-1)];
+    end
+    peak_num = [peak_num, col];
+end
+% display all threshold current values
+fprintf('I1:')
+disp(curr_th(1))
+fprintf('I2:')
+disp(curr_th(2))
+fprintf('I3:')
+disp(curr_th(3))
+% plot Iext vs firing rate 
+figure(1)
+%subplot(2,1,1)
+plot(Iext,peak_num)
+hold on
+plot([curr_th(1) curr_th(1)],[1 120], '-r')
+hold on
+plot([curr_th(2) curr_th(2)],[1 120], '-g')
+hold on
+plot([curr_th(3) curr_th(3)],[1 120], '-c')
+xlim([0 0.7])
+ylim([0 130])
+xlabel("I_{Ext}")
+ylabel("No. of spikes per second")
+title('Dynamics of HH neuron model')
+legend('# spikes', 'I1','I2', 'I3')
+
